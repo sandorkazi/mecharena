@@ -87,23 +87,39 @@ function makeBatch(gl, prog, aPos, aNorm, aCol) {
 }
 
 // yaw-körüli forgatás + skála + eltolás (megegyezik a régi mat4model-lel)
-function pushBox(b, x, y, z, yaw, sx, sy, sz, r, g, bl) {
+// yaw+pitch forgatás + skála + eltolás; R = Ry(yaw)*Rx(pitch)
+function pushBoxP(b, x, y, z, yaw, pitch, sx, sys, sz, r, g, bl) {
   if (b.n + 36 > MAXB * 36) return;
-  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const cY = Math.cos(yaw), sY = Math.sin(yaw), cP = Math.cos(pitch), sP = Math.sin(pitch);
+  const Xx = cY, Xy = 0, Xz = -sY;
+  const Yx = sP * sY, Yy = cP, Yz = sP * cY;
+  const Zx = cP * sY, Zy = -sP, Zz = cP * cY;
   let o = b.n * 3;
   for (let i = 0; i < 36; i++) {
-    const lx = CUBE_POS[i*3] * sx, ly = CUBE_POS[i*3+1] * sy, lz = CUBE_POS[i*3+2] * sz;
-    b.pos[o]   = c*lx + s*lz + x;
-    b.pos[o+1] = ly + y;
-    b.pos[o+2] = -s*lx + c*lz + z;
-    const nx = CUBE_NORM[i*3], nz = CUBE_NORM[i*3+2];
-    b.nor[o]   = c*nx + s*nz;
-    b.nor[o+1] = CUBE_NORM[i*3+1];
-    b.nor[o+2] = -s*nx + c*nz;
+    const lx = CUBE_POS[i*3] * sx, ly = CUBE_POS[i*3+1] * sys, lz = CUBE_POS[i*3+2] * sz;
+    b.pos[o]   = Xx*lx + Yx*ly + Zx*lz + x;
+    b.pos[o+1] = Xy*lx + Yy*ly + Zy*lz + y;
+    b.pos[o+2] = Xz*lx + Yz*ly + Zz*lz + z;
+    const nx = CUBE_NORM[i*3], ny = CUBE_NORM[i*3+1], nz = CUBE_NORM[i*3+2];
+    b.nor[o]   = Xx*nx + Yx*ny + Zx*nz;
+    b.nor[o+1] = Xy*nx + Yy*ny + Zy*nz;
+    b.nor[o+2] = Xz*nx + Yz*ny + Zz*nz;
     b.col[o] = r; b.col[o+1] = g; b.col[o+2] = bl;
     o += 3;
   }
   b.n += 36;
+}
+function pushBox(b, x, y, z, yaw, sx, sy, sz, r, g, bl) {
+  pushBoxP(b, x, y, z, yaw, 0, sx, sy, sz, r, g, bl);
+}
+// végtag-pont: pivot + R(yaw,pitch)*offset (pl. csípő->térd)
+function limbPoint(px, py, pz, ox, oy, oz, yaw, pitch) {
+  const cY = Math.cos(yaw), sY = Math.sin(yaw), cP = Math.cos(pitch), sP = Math.sin(pitch);
+  return [
+    px + ox * cY + oy * sP * sY + oz * cP * sY,
+    py + oy * cP - oz * sP,
+    pz - ox * sY + oy * sP * cY + oz * cP * cY,
+  ];
 }
 
 function createRenderer(canvas) {
@@ -141,66 +157,150 @@ function createRenderer(canvas) {
     parts.push(p);
   }
 
-  // ---- mech modell (~14 box): lábak, törzs, fej+visor, vállak, fegyverkar, kaszt-jel ----
+  // ---- anime mech suit (~40 box): Gundam-ihletésű humanoid ----
+  // fehér páncél + csapat-szín jelzések + arany V-fin + sárga szellőzők,
+  // séta-animáció (láb/kar-lengés), ugráskor behúzott póz
   function drawMech(m) {
     const tc = TEAM[m.team];
     const by = m.y, yaw = m.yaw;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
     const flash = m.spawnProt > 0 && Math.floor(time * 8) % 2 === 0;
-    const R = flash ? 1 : DARK[0], G = flash ? 1 : DARK[1], B = flash ? 1 : DARK[2];
-    // lábak + lábfejek
-    const lx = cy * 0.45, lz = -sy * 0.45;
-    pushBox(opaque, m.x - lx, by + 0.45, m.z - lz, yaw, 0.28, 0.45, 0.32, R, G, B);
-    pushBox(opaque, m.x + lx, by + 0.45, m.z + lz, yaw, 0.28, 0.45, 0.32, R, G, B);
-    pushBox(opaque, m.x - lx, by + 0.12, m.z - lz, yaw, 0.32, 0.12, 0.5, MID[0], MID[1], MID[2]);
-    pushBox(opaque, m.x + lx, by + 0.12, m.z + lz, yaw, 0.32, 0.12, 0.5, MID[0], MID[1], MID[2]);
-    // törzs (kaszt-szélesség) + csapat-sáv
-    const wide = m.cls === 'tank' ? 1.15 : m.cls === 'support' ? 1.0 : 0.9;
-    const tr = flash ? 1 : tc[0], tg = flash ? 1 : tc[1], tb = flash ? 1 : tc[2];
-    pushBox(opaque, m.x, by + 1.35, m.z, yaw, 0.55 * wide, 0.55, 0.42, MID[0], MID[1], MID[2]);
-    pushBox(opaque, m.x, by + 1.12, m.z, yaw, 0.57 * wide, 0.12, 0.44, tr, tg, tb);
-    // vállak
-    pushBox(opaque, m.x - cy * 0.75, by + 1.7, m.z + sy * 0.75, yaw, 0.3, 0.28, 0.4, LITE[0], LITE[1], LITE[2]);
-    pushBox(opaque, m.x + cy * 0.75, by + 1.7, m.z - sy * 0.75, yaw, 0.3, 0.28, 0.4, LITE[0], LITE[1], LITE[2]);
-    if (m.cls === 'tank') { // extra páncél
-      pushBox(opaque, m.x - cy * 0.75, by + 2.0, m.z + sy * 0.75, yaw, 0.34, 0.14, 0.44, tr, tg, tb);
-      pushBox(opaque, m.x + cy * 0.75, by + 2.0, m.z - sy * 0.75, yaw, 0.34, 0.14, 0.44, tr, tg, tb);
+    const k = m.cls === 'tank' ? 1.12 : m.cls === 'striker' ? 0.95 : 1.02; // testalkat
+    const W = flash ? [1, 1, 1] : (m.cls === 'tank' ? [0.62, 0.64, 0.66] : [0.82, 0.84, 0.88]); // páncél
+    const F = flash ? [1, 1, 1] : [0.16, 0.18, 0.22];  // váz (sötét ízületek)
+    const T = flash ? [1, 1, 1] : tc;                   // csapat-szín
+    const GOLD = flash ? [1, 1, 1] : [1, 0.78, 0.25];
+    const VENT = flash ? [1, 1, 1] : [1, 0.85, 0.2];
+
+    // mozgás-animáció
+    const spd = Math.hypot(m.vx, m.vz);
+    const moveK = Math.min(1, spd / 6);
+    const air = by > 0.05;
+    const ph = time * (5 + spd * 1.1) + m.id * 2.1;
+    const swL = air ? -0.55 : Math.sin(ph) * 0.55 * moveK;
+    const swR = air ? -0.4 : Math.sin(ph + Math.PI) * 0.55 * moveK;
+    const bob = air ? 0 : Math.abs(Math.sin(ph)) * 0.05 * moveK;
+
+    // ---- lábak (csípő->comb->lábszár->lábfej, döntött boxok) ----
+    const hipY = by + 1.06 * k + bob, hipX = 0.3 * k;
+    for (let side = -1; side <= 1; side += 2) {
+      const sw = side < 0 ? swL : swR;
+      const hx = m.x + cy * hipX * side, hz = m.z - sy * hipX * side;
+      const th = limbPoint(hx, hipY, hz, 0, -0.2, 0, yaw, sw);
+      const sh = limbPoint(hx, hipY, hz, 0, -0.58, 0, yaw, sw);
+      const ft = limbPoint(hx, hipY, hz, 0, -0.94, 0.05, yaw, sw);
+      pushBoxP(opaque, th[0], th[1], th[2], yaw, sw, 0.15, 0.2, 0.17, F[0], F[1], F[2]);          // comb (váz)
+      pushBoxP(opaque, sh[0], sh[1], sh[2], yaw, sw, 0.19, 0.3, 0.21, W[0], W[1], W[2]);          // lábszár-páncél
+      pushBoxP(opaque, sh[0] + sy * 0.2, sh[1] + 0.12, sh[2] + cy * 0.2, yaw, sw, 0.1, 0.1, 0.08, T[0], T[1], T[2]); // térd-jel
+      const fy = Math.max(0.1, ft[1]);
+      pushBox(opaque, ft[0], fy, ft[2], yaw, 0.19, 0.1, 0.32, F[0], F[1], F[2]);                  // lábfej
+      pushBox(opaque, ft[0] + sy * 0.12, fy - 0.02, ft[2] + cy * 0.12, yaw, 0.2, 0.06, 0.14, W[0], W[1], W[2]); // orr-páncél
+      if (air) pushBox(fx, ft[0], fy - 0.05, ft[2], yaw, 0.1, 0.15, 0.1, 1, 0.55, 0.15);          // láb-vernierek
     }
-    // fej + világító visor (FX: sötétben is látszik)
-    pushBox(opaque, m.x, by + 2.15, m.z, yaw, 0.3, 0.28, 0.3, R, G, B);
-    pushBox(fx, m.x + sy * 0.28, by + 2.15, m.z + cy * 0.28, yaw, 0.22, 0.1, 0.06,
-      m.team ? 1 : 0.3, m.team ? 0.25 : 1, m.team ? 0.2 : 0.4);
-    if (m.cls === 'striker') pushBox(opaque, m.x - sy * 0.1, by + 2.6, m.z - cy * 0.1, yaw, 0.08, 0.3, 0.3, tr, tg, tb); // taréj
-    if (m.cls === 'support') { // antenna + hátizsák
-      pushBox(opaque, m.x - cy * 0.5, by + 2.5, m.z + sy * 0.5, yaw, 0.05, 0.5, 0.05, LITE[0], LITE[1], LITE[2]);
-      pushBox(opaque, m.x - sy * 0.55, by + 1.5, m.z - cy * 0.55, yaw, 0.4, 0.5, 0.25, 0.2, 0.5, 0.3);
+    // ---- szoknya-páncél (elöl/hátul döntve, oldalt egyenesen) ----
+    const wy = by + 1.18 * k + bob;
+    pushBoxP(opaque, m.x + sy * 0.42, wy, m.z + cy * 0.42, yaw, 0.3, 0.4, 0.22, 0.08, W[0], W[1], W[2]);
+    pushBoxP(opaque, m.x - sy * 0.42, wy, m.z - cy * 0.42, yaw, -0.3, 0.4, 0.22, 0.08, W[0], W[1], W[2]);
+    pushBox(opaque, m.x + cy * 0.5, wy, m.z - sy * 0.5, yaw, 0.08, 0.24, 0.4, W[0], W[1], W[2]);
+    pushBox(opaque, m.x - cy * 0.5, wy, m.z + sy * 0.5, yaw, 0.08, 0.24, 0.4, W[0], W[1], W[2]);
+    pushBox(opaque, m.x, wy + 0.12, m.z, yaw, 0.34, 0.14, 0.3, F[0], F[1], F[2]); // derék
+    // ---- törzs: mellkas + sárga szellőzők + pilótafülke + csapat-sáv ----
+    const chy = by + 1.58 * k + bob;
+    pushBox(opaque, m.x, chy, m.z, yaw, 0.34 * k, 0.32, 0.26, W[0], W[1], W[2]);
+    pushBox(opaque, m.x + cy * 0.2 + sy * 0.3, chy + 0.12, m.z - sy * 0.2 + cy * 0.3, yaw, 0.1, 0.08, 0.05, VENT[0], VENT[1], VENT[2]);
+    pushBox(opaque, m.x - cy * 0.2 + sy * 0.3, chy + 0.12, m.z + sy * 0.2 + cy * 0.3, yaw, 0.1, 0.08, 0.05, VENT[0], VENT[1], VENT[2]);
+    pushBox(opaque, m.x + sy * 0.28, chy + 0.02, m.z + cy * 0.28, yaw, 0.2, 0.16, 0.05, F[0], F[1], F[2]); // cockpit
+    pushBox(opaque, m.x, chy - 0.2, m.z, yaw, 0.36 * k, 0.07, 0.28, T[0], T[1], T[2]); // csapat-sáv
+    // ---- hátizsák + hajtóművek ----
+    pushBox(opaque, m.x - sy * 0.34, chy + 0.1, m.z - cy * 0.34, yaw, 0.4, 0.36, 0.14, W[0], W[1], W[2]);
+    for (let side = -1; side <= 1; side += 2) {
+      const tx = m.x + cy * 0.22 * side - sy * 0.42, tz = m.z - sy * 0.22 * side - cy * 0.42;
+      pushBox(opaque, tx, chy - 0.05, tz, yaw, 0.13, 0.2, 0.13, F[0], F[1], F[2]);
+      if (air || (m.dashT > 0)) {
+        const fl = 0.3 + Math.sin(time * 40 + m.id * 3 + side) * 0.1;
+        pushBox(fx, tx, chy - 0.28 - fl / 2, tz, yaw, 0.09, fl, 0.09, 1, 0.55, 0.15);
+      }
     }
-    // fegyverkar + cső (fegyver-szín kódolva)
-    const WC = m.weapon === 'rocket' ? [0.9, 0.45, 0.15] : m.weapon === 'rail' ? [0.3, 0.8, 1] : [0.55, 0.58, 0.65];
-    const gx = m.x + cy * 0.75 + sy * 0.9, gz = m.z - sy * 0.75 + cy * 0.9;
-    pushBox(opaque, gx, by + 1.5, gz, yaw, 0.16, 0.16, 0.85, WC[0], WC[1], WC[2]);
-    // kard-kar (jobb oldal, rövid penge-hüvely)
-    pushBox(opaque, m.x - cy * 0.75 + sy * 0.4, by + 1.3, m.z + sy * 0.75 + cy * 0.4, yaw, 0.14, 0.14, 0.6, 0.7, 0.15, 0.2);
-    // találat-villanás (fehér overlay)
-    if (m.hitT > 0) pushBox(fx, m.x, by + 1.35, m.z, yaw, 0.62 * wide, 0.62, 0.5, 1, 1, 1);
-    // muzzle flash
+    if (m.cls === 'support') { // nagy antenna + segély-jel
+      pushBox(opaque, m.x + cy * 0.3 - sy * 0.4, chy + 0.55, m.z - sy * 0.3 - cy * 0.4, yaw, 0.03, 0.45, 0.03, F[0], F[1], F[2]);
+      pushBox(fx, m.x + cy * 0.3 - sy * 0.4, chy + 0.78, m.z - sy * 0.3 - cy * 0.4, yaw, 0.05, 0.05, 0.05, 0.3, 1, 0.4);
+    }
+    if (m.cls === 'tank') { // váll-ágyúk
+      for (let side = -1; side <= 1; side += 2)
+        pushBox(opaque, m.x + cy * 0.62 * k * side + sy * 0.2, chy + 0.42, m.z - sy * 0.62 * k * side + cy * 0.2, yaw, 0.12, 0.12, 0.7, F[0], F[1], F[2]);
+    }
+    // ---- vállak + karok ----
+    const shoY = by + 1.82 * k + bob;
+    let fistR = null, fistL = null;
+    for (let side = -1; side <= 1; side += 2) {
+      const sxp = m.x + cy * 0.62 * k * side, szp = m.z - sy * 0.62 * k * side;
+      const shS = (m.cls === 'tank' ? 1.25 : 1);
+      pushBox(opaque, sxp, shoY + 0.08, szp, yaw, 0.2 * shS, 0.16 * shS, 0.24 * shS, W[0], W[1], W[2]); // vállpáncél
+      pushBox(opaque, sxp, shoY + 0.18 * shS, szp, yaw, 0.14 * shS, 0.06, 0.18 * shS, T[0], T[1], T[2]); // váll-jel
+      const isR = side > 0;
+      const armP = isR ? -1.0 : (air ? 0.35 : -(side < 0 ? swL : swR) * 0.5); // jobb kar fegyvert tart előre
+      const el = limbPoint(sxp, shoY, szp, 0, -0.2, 0, yaw, armP);
+      const fi = limbPoint(sxp, shoY, szp, 0, -0.44, 0, yaw, armP);
+      pushBoxP(opaque, el[0], el[1], el[2], yaw, armP, 0.12, 0.2, 0.13, W[0], W[1], W[2]); // felkar+alkar
+      pushBoxP(opaque, fi[0], fi[1], fi[2], yaw, armP, 0.11, 0.12, 0.12, F[0], F[1], F[2]); // ököl
+      if (isR) fistR = fi; else fistL = { p: fi, pitch: armP };
+    }
+    // ---- fej: sisak + arc + világító szemek + V-fin ----
+    const heY = by + 2.12 * k + bob;
+    pushBox(opaque, m.x, heY, m.z, yaw, 0.17, 0.2, 0.18, W[0], W[1], W[2]);
+    pushBox(opaque, m.x + sy * 0.15, heY - 0.05, m.z + cy * 0.15, yaw, 0.13, 0.12, 0.06, 0.75, 0.77, 0.8);
+    pushBox(fx, m.x + sy * 0.2, heY - 0.02, m.z + cy * 0.2, yaw, 0.11, 0.035, 0.03,
+      m.team ? 1 : 0.3, m.team ? 0.25 : 1, m.team ? 0.2 : 0.4); // szem-szenzor
+    const finS = m.cls === 'striker' ? 1.3 : 1;
+    pushBoxP(opaque, m.x + cy * 0.08, heY + 0.26 * finS, m.z - sy * 0.08, yaw + 0.5, -0.25, 0.05, 0.18 * finS, 0.05, GOLD[0], GOLD[1], GOLD[2]);
+    pushBoxP(opaque, m.x - cy * 0.08, heY + 0.26 * finS, m.z + sy * 0.08, yaw - 0.5, -0.25, 0.05, 0.18 * finS, 0.05, GOLD[0], GOLD[1], GOLD[2]);
+    // ---- pajzs (bal alkar) ----
+    if (fistL) {
+      const fp = fistL.p;
+      const shx = fp[0] - cy * 0.2, shz = fp[2] + sy * 0.2;
+      const shS = m.cls === 'tank' ? 1.3 : 1;
+      pushBoxP(opaque, shx, fp[1] + 0.05, shz, yaw, fistL.pitch, 0.06, 0.42 * shS, 0.34 * shS, T[0], T[1], T[2]);
+      pushBoxP(opaque, shx - cy * 0.04, fp[1] + 0.05, shz + sy * 0.04, yaw, fistL.pitch, 0.03, 0.3 * shS, 0.2 * shS, W[0], W[1], W[2]);
+    }
+    // ---- fegyver (jobb kéz, előre): beam-rifle / rakéta / rail ----
+    let mx = m.x + sy, mz = m.z + cy, my = by + 1.5;
+    if (fistR) {
+      const fp = fistR;
+      if (m.weapon === 'rocket') {
+        pushBox(opaque, fp[0] + sy * 0.35, fp[1] + 0.05, fp[2] + cy * 0.35, yaw, 0.16, 0.18, 0.7, 0.85, 0.45, 0.15);
+        pushBox(opaque, fp[0] + sy * 0.75, fp[1] + 0.05, fp[2] + cy * 0.75, yaw, 0.12, 0.12, 0.12, 0.7, 0.2, 0.1);
+        mx = fp[0] + sy * 1.1; my = fp[1] + 0.05; mz = fp[2] + cy * 1.1;
+      } else if (m.weapon === 'rail') {
+        pushBox(opaque, fp[0] + sy * 0.45, fp[1] + 0.05, fp[2] + cy * 0.45, yaw, 0.09, 0.12, 1.1, 0.3, 0.35, 0.45);
+        pushBox(fx, fp[0] + sy * 1.0, fp[1] + 0.05, fp[2] + cy * 1.0, yaw, 0.07, 0.07, 0.14, 0.35, 0.85, 1); // töltött sín
+        mx = fp[0] + sy * 1.15; my = fp[1] + 0.05; mz = fp[2] + cy * 1.15;
+      } else {
+        pushBox(opaque, fp[0] + sy * 0.35, fp[1] + 0.05, fp[2] + cy * 0.35, yaw, 0.1, 0.13, 0.75, 0.45, 0.48, 0.55);
+        pushBox(opaque, fp[0] + sy * 0.4, fp[1] - 0.08, fp[2] + cy * 0.4, yaw, 0.08, 0.14, 0.2, F[0], F[1], F[2]); // tár
+        mx = fp[0] + sy * 0.8; my = fp[1] + 0.05; mz = fp[2] + cy * 0.8;
+      }
+    }
+    // ---- beam-saber (bal kéz): penge csak csapáskor ----
+    if (fistL && m.swordCd > 0.63) {
+      const fp = fistL.p;
+      pushBox(fx, fp[0] + sy * 0.9, fp[1] + 0.15, fp[2] + cy * 0.9, yaw, 0.07, 0.07, 0.9, 1, 0.35, 0.6);
+      pushBox(fx, fp[0] + sy * 0.9, fp[1] + 0.15, fp[2] + cy * 0.9, yaw, 0.12, 0.12, 0.9, 1, 0.6, 0.8);
+    } else if (fistL) {
+      pushBox(opaque, fistL.p[0], fistL.p[1] - 0.1, fistL.p[2], yaw, 0.05, 0.14, 0.05, F[0], F[1], F[2]); // markolat
+    }
+    // találat-villanás
+    if (m.hitT > 0) pushBox(fx, m.x, by + 1.5, m.z, yaw, 0.65 * k, 0.85, 0.5, 1, 1, 1);
+    // muzzle flash a cső végén
     if (m.muzzle > 0) {
-      const mx = gx + sy * 1.0, mz = gz + cy * 1.0;
       const f = 0.5 + m.muzzle * 6;
       const mc = m.weapon === 'rail' ? [0.4, 0.9, 1] : m.weapon === 'rocket' ? [1, 0.55, 0.15] : [1, 0.9, 0.4];
-      pushBox(fx, mx, by + 1.5, mz, yaw, 0.3 * f, 0.3 * f, 0.3 * f, mc[0], mc[1], mc[2]);
-      pushBox(fx, mx, by + 1.5, mz, yaw + Math.PI / 4, 0.18 * f, 0.18 * f, 0.18 * f, 1, 1, 1);
-    }
-    // jet-láng
-    if (by > 0.05) {
-      const fl = 0.5 + Math.sin(time * 40 + m.id * 3) * 0.15;
-      pushBox(fx, m.x - lx, by - 0.15, m.z - lz, yaw, 0.16, 0.35 * fl, 0.16, 1, 0.55, 0.15);
-      pushBox(fx, m.x + lx, by - 0.15, m.z + lz, yaw, 0.16, 0.35 * fl, 0.16, 1, 0.55, 0.15);
+      pushBox(fx, mx, my, mz, yaw, 0.28 * f, 0.28 * f, 0.28 * f, mc[0], mc[1], mc[2]);
+      pushBox(fx, mx, my, mz, yaw + Math.PI / 4, 0.16 * f, 0.16 * f, 0.16 * f, 1, 1, 1);
     }
     // dash-szellemkép
-    if (m.dashT > 0) pushBox(fx, m.x - m.dashDx * 1.5, by + 1.35, m.z - m.dashDz * 1.5, yaw, 0.55 * wide, 0.55, 0.42, tr * 0.7, tg * 0.7, tb * 0.7);
+    if (m.dashT > 0) pushBox(fx, m.x - m.dashDx * 1.5, by + 1.5, m.z - m.dashDz * 1.5, yaw, 0.6 * k, 0.8, 0.45, T[0] * 0.7, T[1] * 0.7, T[2] * 0.7);
     // pajzs-burok
-    if (m.shieldT > 0) pushBox(fx, m.x, by + 1.35, m.z, yaw, 1.15, 1.35, 1.0, 0.25, 0.7, 1);
+    if (m.shieldT > 0) pushBox(fx, m.x, by + 1.5, m.z, yaw, 1.0, 1.5, 0.85, 0.25, 0.7, 1);
     // EMP-debuff gyűrű
     if (m.empT > 0 && Math.floor(time * 6) % 2 === 0)
       pushBox(fx, m.x, by + 0.4, m.z, time * 2, 1.2, 0.1, 1.2, 0.6, 0.4, 1);
