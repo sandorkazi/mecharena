@@ -3,46 +3,90 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mech Arena — MVP skeleton</title>
+  <title>Mech Arena — MVP</title>
   <style>
     html,body{margin:0;height:100%;background:#0b0e14;color:#e8edf5;font-family:system-ui,sans-serif}
-    #app{max-width:900px;margin:0 auto;padding:24px}
+    #app{max-width:1100px;margin:0 auto;padding:16px}
     .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
     .main{background:#1d4ed8}.develop{background:#b45309}
-    canvas{width:100%;height:320px;background:#111826;border:1px solid #26314a;border-radius:8px}
     nav a{color:#93c5fd;margin-right:12px}
+    button,select,input{background:#1a2233;color:#e8edf5;border:1px solid #33415e;border-radius:8px;padding:8px 14px;font-size:15px}
+    button{cursor:pointer;background:#1d4ed8;border-color:#1d4ed8}button:hover{filter:brightness(1.15)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:8px 0}
+    label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#9fb0cc}
+    #c{width:100%;height:55vh;min-height:320px;background:#111826;border:1px solid #26314a;border-radius:8px;display:block}
+    #hud{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;font-size:14px}
+    .bar{background:#1a2233;border-radius:6px;height:14px;overflow:hidden}.bar>i{display:block;height:100%}
+    #hp-fill{background:#22c55e}#fuel-fill{background:#38bdf8}#dash-fill{background:#f59e0b}
+    #killfeed{position:absolute;max-height:120px;overflow:hidden;font-size:13px}
+    #killfeed .good{color:#4ade80}#killfeed .bad{color:#f87171}
+    #wrap{position:relative}
+    #toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#000c;padding:6px 14px;border-radius:8px;transition:opacity .3s}
+    #round-info,#fps{color:#9fb0cc}
+    #pause{display:none;position:absolute;inset:0;background:#000a;text-align:center;padding-top:15vh}
+    table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border:1px solid #26314a;padding:4px 8px;font-size:14px}
+    tr.me{background:#12233f}
+    #help{display:none;background:#101828;border:1px solid #26314a;border-radius:8px;padding:12px;margin-top:8px}
     code{background:#1a2233;padding:1px 6px;border-radius:6px}
   </style>
 </head>
 <body>
 <div id="app">
-  <nav>
-    <a href="./">Stable (main)</a>
-    <a href="./develop/">Develop</a>
-    <a href="https://github.com/sandorkazi/mecharena">GitHub</a>
-  </nav>
+  <nav><a href="./">Stable</a><a href="./develop/">Develop</a><a href="https://github.com/sandorkazi/mecharena">GitHub</a></nav>
   <h1>Mech Arena <span id="branch" class="badge main">main</span></h1>
-  <p>MVP skeleton — <code>specs.md</code> szerint. Játék-logika még nincs, csak Pages-deploy ellenőrző oldal.</p>
-  <canvas id="c" width="900" height="320"></canvas>
-  <p id="info"></p>
-  <ul>
-    <li>Stabil: <code>/</code> = <code>main</code> branch</li>
-    <li>Fejlesztői: <code>/develop/</code> = <code>develop</code> branch</li>
-  </ul>
+  <div id="nogl" style="display:none;background:#7f1d1d;padding:12px;border-radius:8px">WebGL nem elérhető — a játék 3D megjelenítéshez WebGL1-et igényel.</div>
+
+  <div id="screen-menu">
+    <p>3D third-person mech arena · 4v4 vs AI · <code>specs.md</code> MVP</p>
+    <div class="row"><button id="btn-lobby">Lobby →</button><button id="btn-help">Irányítás</button></div>
+    <div id="help">WASD mozgás (kamera-relatív) · egér célzás (kattints a pályára a lock-hoz) · bal klikk tűz · jobb klikk kard · Space ugrás/tartva jetpack · Shift dash · E pickup · Q szuper · R töltés · Esc szünet · M némítás</div>
+  </div>
+
+  <div id="screen-lobby" style="display:none">
+    <h2>Lobby — 4v4</h2>
+    <div class="row">
+      <label>Kaszt<select id="sel-class"><option value="striker" selected>Striker (120HP, gyors)</option><option value="tank">Tank (200HP, lassú)</option><option value="support">Support (140HP, gyógyít)</option></select></label>
+      <label>Primary<select id="sel-weapon"><option value="mg" selected>Géppuska</option><option value="rocket">Rakéta</option><option value="rail">Railgun</option></select></label>
+      <label>Körök<select id="sel-rounds"><option>1</option><option>3</option><option selected>5</option><option>7</option></select></label>
+      <label>Élet/kör<select id="sel-lives"><option>0</option><option>1</option><option selected>2</option></select></label>
+      <label>Botok<select id="sel-diff"><option value="easy">könnyű</option><option value="normal" selected>normál</option></select></label>
+    </div>
+    <div class="row"><button id="btn-start">Start meccs</button></div>
+    <p style="color:#9fb0cc">Kék: te + 3 bot vs Piros: 4 bot. Másodlagos mindig lánckard (jobb klikk). Szuperfegyverek (EMP/Pajzs/Overdrive) a pályán vehetők fel.</p>
+  </div>
+
+  <div id="screen-game" style="display:none">
+    <div id="wrap">
+      <canvas id="c" width="900" height="450"></canvas>
+      <div id="killfeed"></div>
+      <div id="toast" style="opacity:0"></div>
+      <div id="pause"><h2>Szünet</h2>
+        <div class="row" style="justify-content:center"><button id="btn-resume">Folytatás</button><button id="btn-quit">Feladás</button></div>
+        <div class="row" style="justify-content:center"><label>Minőség<select id="sel-quality"><option value="auto" selected>Auto</option><option value="low">Low</option><option value="high">High</option></select></label>
+        <label>Érzékenység<input id="sens" type="range" min="0.5" max="3" step="0.1" value="1.2"></label></div>
+      </div>
+    </div>
+    <div id="hud">
+      <div>HP <span id="hp-num"></span><div class="bar"><i id="hp-fill"></i></div></div>
+      <div>Fuel<div class="bar"><i id="fuel-fill"></i></div>Dash<div class="bar"><i id="dash-fill"></i></div></div>
+      <div><div id="ammo"></div><div id="super"></div><div id="debuff" style="color:#fbbf24"></div></div>
+    </div>
+    <div class="row"><span id="round-info"></span><span id="fps"></span></div>
+  </div>
+
+  <div id="screen-result" style="display:none">
+    <h2 id="result-title"></h2><h3 id="match-winner"></h3>
+    <div id="result-table"></div>
+    <div class="row"><button id="btn-next">Következő kör</button><button id="btn-again">Új meccs</button><button id="btn-tolobby">Lobby</button></div>
+  </div>
 </div>
-<script>
-  const isDevelop = location.pathname.includes('/develop');
-  const el = document.getElementById('branch');
-  el.textContent = isDevelop ? 'develop' : 'main';
-  el.className = 'badge ' + (isDevelop ? 'develop' : 'main');
-  document.getElementById('info').textContent =
-    'URL: ' + location.href + ' — WebGL ' +
-    (!!document.createElement('canvas').getContext('webgl') ? 'OK' : 'NEM elérhető');
-  const c = document.getElementById('c').getContext('2d');
-  c.fillStyle = '#111826'; c.fillRect(0,0,900,320);
-  c.fillStyle = isDevelop ? '#b45309' : '#1d4ed8';
-  for (let i=0;i<8;i++) c.fillRect(60+i*100, 140+Math.sin(Date.now()/500+i)*10, 40, 60);
-  requestAnimationFrame(function tick(){});
-</script>
+<script src="./src/sim.js"></script>
+<script src="./src/bots.js"></script>
+<script src="./src/render.js"></script>
+<script src="./src/input.js"></script>
+<script src="./src/audio.js"></script>
+<script src="./src/net.js"></script>
+<script src="./src/ui.js"></script>
+<script src="./src/main.js"></script>
 </body>
 </html>
