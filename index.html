@@ -21,6 +21,17 @@
     #killfeed{position:absolute;max-height:120px;overflow:hidden;font-size:13px}
     #killfeed .good{color:#4ade80}#killfeed .bad{color:#f87171}
     #wrap{position:relative}
+    #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);pointer-events:none}
+    #cross::before,#cross::after{content:'';position:absolute;background:#e8edf5cc}
+    #cross::before{left:10px;top:2px;width:2px;height:18px}
+    #cross::after{left:2px;top:10px;width:18px;height:2px}
+    #cross .dot{position:absolute;left:9px;top:9px;width:4px;height:4px;border-radius:50%;background:#4ade80}
+    #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;pointer-events:none}
+    #hitm::before,#hitm::after{content:'';position:absolute;background:#fff}
+    #hitm::before{left:12px;top:0;width:2px;height:26px}
+    #hitm::after{left:0;top:12px;width:26px;height:2px}
+    #hitm.kill::before,#hitm.kill::after{background:#f87171}
+    #dmg{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 55%,#dc2626aa 100%)}
     #toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#000c;padding:6px 14px;border-radius:8px;transition:opacity .3s}
     #round-info,#fps{color:#9fb0cc}
     #pause{display:none;position:absolute;inset:0;background:#000a;text-align:center;padding-top:15vh}
@@ -58,6 +69,9 @@
   <div id="screen-game" style="display:none">
     <div id="wrap">
       <canvas id="c" width="900" height="450"></canvas>
+      <div id="cross"><span class="dot"></span></div>
+      <div id="hitm"></div>
+      <div id="dmg"></div>
       <div id="killfeed"></div>
       <div id="toast" style="opacity:0"></div>
       <div id="pause"><h2>Szünet</h2>

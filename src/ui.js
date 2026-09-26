@@ -42,8 +42,20 @@ function hud(s, pid, fps, quality) {
   el('round-info').textContent = 'Kör ' + s.round + '/' + s.rounds + '  Kék ' + s.killsBlue + ' : ' + s.killsRed + ' Piros  Élet: ' + (m.respawns + (m.alive ? 1 : 0));
   el('fps').textContent = fps + ' fps · ' + quality;
 }
-function results(s, wins) {
-  let h = '<table><tr><th>#</th><th>Csapat</th><th>Kaszt</th><th>K</th><th>D</th><th>Sebzés</th><th>Pont%</th></tr>';
+function hitmarker(kill) {
+  const h = el('hitm');
+  if (!h) return;
+  h.className = kill ? 'kill' : '';
+  h.style.opacity = 1;
+  clearTimeout(h._h); h._h = setTimeout(() => h.style.opacity = 0, kill ? 300 : 120);
+}
+function damageFlash() {
+  const d = el('dmg');
+  if (!d) return;
+  d.style.opacity = 1;
+  clearTimeout(d._h); d._h = setTimeout(() => d.style.opacity = 0, 250);
+}
+function results(s, wins) {  let h = '<table><tr><th>#</th><th>Csapat</th><th>Kaszt</th><th>K</th><th>D</th><th>Sebzés</th><th>Pont%</th></tr>';
   const rows = [...s.mechs].sort((a, b) => b.kills - a.kills);
   for (const m of rows) {
     const acc = m.shots ? Math.round(100 * m.hits / m.shots) : 0;

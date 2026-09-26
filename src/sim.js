@@ -78,6 +78,7 @@ function makeMech(id, team, cls, weapon, x, z, yaw, bot, diff) {
     fuel: 3.0, dashCd: 0, dashT: 0, dashDx: 0, dashDz: 0, dmgMul: 1,
     fireCd: 0, reloadT: 0, ammo: w.mag, reserve: w.reserve,
     swordCd: 0, super: null, shieldT: 0, shieldHp: 0, overT: 0, empT: 0,
+    muzzle: 0, hitT: 0,
     kills: 0, deaths: 0, dmg: 0, shots: 0, hits: 0,
     ai: { state: 'engage', t: 0, tx: x, tz: z, target: -1, strafe: 1 },
     spawnProt: 0,
@@ -179,6 +180,7 @@ function damage(s, target, amount, fromId, isSplash) {
     if (target.shieldHp <= 0) target.shieldT = 0;
   }
   target.hp -= amount;
+  target.hitT = 0.3;
   if (fromId != null && s.mechs[fromId]) s.mechs[fromId].dmg += amount;
   s.events.push({ type: 'hit', target: target.id, from: fromId, amount });
   if (target.hp <= 0) kill(s, target, fromId);
@@ -213,21 +215,23 @@ function fireWeapon(s, m) {
   const dmgMul = (m.overT > 0 ? 2 : 1);
   m.fireCd = w.interval * (m.cls === 'striker' && (m.weapon === 'rocket' || m.weapon === 'rail') ? 0.8 : 1);
   m.ammo--; m.shots++;
+  m.muzzle = 0.09;
   const ox = m.x, oz = m.z, oy = m.y + 1.6;
   const dx = Math.sin(m.yaw), dz = Math.cos(m.yaw);
   if (m.weapon === 'rocket') {
     s.projectiles.push({ kind: 'rocket', x: ox + dx * 1.5, y: oy, z: oz + dz * 1.5, vx: dx * 25, vy: 0, vz: dz * 25, team: m.team, from: m.id, dmg: w.dmg * dmgMul, life: 3 });
-    s.events.push({ type: 'shot', id: m.id, w: 'rocket' });
+    s.events.push({ type: 'shot', id: m.id, w: 'rocket', ox, oy, oz });
   } else if (m.weapon === 'rail') {
-    hitscan(s, m, w.range, w.dmg * dmgMul, true);
-    s.events.push({ type: 'shot', id: m.id, w: 'rail' });
+    const dist = hitscan(s, m, w.range, w.dmg * dmgMul, true);
+    s.events.push({ type: 'shot', id: m.id, w: 'rail', ox, oy, oz, dx, dz, dist });
   } else {
     // mg: kis szórás
     const sp = 1.5 * Math.PI / 180;
     const a = (s.rand() - 0.5) * 2 * sp;
     const ca = Math.cos(a), sa = Math.sin(a);
-    hitscan(s, m, w.range, w.dmg * dmgMul, false, dx * ca - dz * sa, dx * sa + dz * ca);
-    s.events.push({ type: 'shot', id: m.id, w: 'mg' });
+    const sx = dx * ca - dz * sa, sz = dx * sa + dz * ca;
+    const dist = hitscan(s, m, w.range, w.dmg * dmgMul, false, sx, sz);
+    s.events.push({ type: 'shot', id: m.id, w: 'mg', ox, oy, oz, dx: sx, dz: sz, dist });
   }
   if (m.ammo <= 0) startReload(m);
 }
@@ -246,7 +250,7 @@ function hitscan(s, m, range, dmg, pierce, dx, dz) {
   for (const b of s.barrels) {
     if (!b.alive) continue;
     const t = rayHitMech(ox, oz, oy, dx, dz, { x: b.x, z: b.z, y: 0 }, blocked);
-    if (t >= 0 && t < bestT) { bestT = t; bestM = null; hitBarrel(s, b, dmg, m.id); m.hits++; return; }
+    if (t >= 0 && t < bestT) { bestT = t; bestM = null; hitBarrel(s, b, dmg, m.id); m.hits++; return bestT; }
   }
   if (bestM) {
     damage(s, bestM, dmg, m.id);
@@ -262,6 +266,7 @@ function hitscan(s, m, range, dmg, pierce, dx, dz) {
       if (second) damage(s, second, dmg * 0.5, m.id);
     }
   }
+  return bestT;
 }
 function fireSword(s, m) {
   if (m.swordCd > 0 || !m.alive) return;
@@ -316,7 +321,7 @@ function explodeEmp(s, x, z, fromId) {
     }
   }
   s.particles.push({ kind: 'emp', x, y: 1, z, t: 0.5 });
-  s.events.push({ type: 'emp', x, z });
+  s.events.push({ type: 'emp', x, y: 1, z });
 }
 function explode(s, x, y, z, dmg, radius, fromId, team) {
   for (const t of s.mechs) {
@@ -333,7 +338,7 @@ function explode(s, x, y, z, dmg, radius, fromId, team) {
     }
   }
   s.particles.push({ kind: 'boom', x, y, z, t: 0.4 });
-  s.events.push({ type: 'boom', x, z });
+  s.events.push({ type: 'boom', x, y, z });
 }
 function hitBarrel(s, b, dmg, fromId) {
   b.hp -= dmg;
@@ -370,6 +375,8 @@ function updateMech(s, m, inp, dt) {
   if (m.swordCd > 0) m.swordCd -= dt;
   if (m.dashCd > 0) m.dashCd -= dt;
   if (m.empT > 0) m.empT -= dt;
+  if (m.muzzle > 0) m.muzzle -= dt;
+  if (m.hitT > 0) m.hitT -= dt;
   if (m.shieldT > 0) { m.shieldT -= dt; if (m.shieldT <= 0) m.shieldHp = 0; }
   if (m.overT > 0) m.overT -= dt;
   if (m.reloadT > 0) {

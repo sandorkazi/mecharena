@@ -60,18 +60,50 @@
   }
 
   function handleEvents() {
+    const pl = S.mechs[0];
     for (const e of Sim.drainEvents(S)) {
-      if (e.type === 'shot') audio.shot(e.w);
-      else if (e.type === 'hit') { if (e.from === 0) audio.hit(); }
+      if (e.type === 'shot') {
+        audio.shot(e.w);
+        if (e.w === 'mg' && e.dist != null)
+          renderer.tracer(e.ox, e.oy, e.oz, e.ox + e.dx * e.dist, e.oy, e.oz + e.dz * e.dist, 1, 0.85, 0.3, 0.09);
+        else if (e.w === 'rail' && e.dist != null)
+          renderer.tracer(e.ox, e.oy, e.oz, e.ox + e.dx * e.dist, e.oy, e.oz + e.dz * e.dist, 0.35, 0.85, 1, 0.18);
+        else if (e.w === 'sword') { const m = S.mechs[e.id]; if (m) renderer.arc(m.x, m.y, m.z, m.yaw); }
+        if (e.id === 0 && (e.w === 'rail' || e.w === 'rocket')) renderer.shake(0.15);
+      }
+      else if (e.type === 'hit') {
+        if (e.from === 0) {
+          audio.hit();
+          const t = S.mechs[e.target];
+          if (t) renderer.burst(t.x, t.y + 1.4, t.z, 5, 1, 0.8, 0.3, 6);
+          hitmarker(false);
+        }
+        if (e.target === 0) damageFlash();
+      }
       else if (e.type === 'kill') {
         audio.kill();
         const t = S.mechs[e.target], f = e.from != null ? S.mechs[e.from] : null;
         feed((f ? (f.team ? 'Piros' : 'Kék') + '#' + f.id : '?') + ' ➜ ' + (t.team ? 'Piros' : 'Kék') + '#' + t.id, t.id === 0 ? 'bad' : f && f.id === 0 ? 'good' : '');
+        if (f && f.id === 0) hitmarker(true);
+        if (pl && t) {
+          const d = Math.hypot(t.x - pl.x, t.z - pl.z);
+          if (d < 12) renderer.shake(0.3);
+        }
         if (e.target === 0) toast('Meghaltál! Respawn…');
+      }
+      else if (e.type === 'boom') {
+        renderer.boom(e.x, e.y != null ? e.y : 1, e.z, false);
+        if (pl) {
+          const d = Math.hypot(e.x - pl.x, e.z - pl.z);
+          if (d < 15) renderer.shake(0.35 * (1 - d / 15));
+        }
+      }
+      else if (e.type === 'emp') {
+        renderer.boom(e.x, 1, e.z, false);
+        renderer.burst(e.x, 1, e.z, 10, 0.6, 0.4, 1, 7);
       }
       else if (e.type === 'pickup' && e.id === 0) { audio.pickup(); toast('Felvétel: ' + e.kind); }
       else if (e.type === 'respawn' && e.id === 0) toast('Vissza a harcba!');
-      else if (e.type === 'emp') toast('EMP robbanás!');
     }
   }
 
@@ -114,7 +146,7 @@
     }
     if (steps === 3) acc = 0;
     handleEvents();
-    renderer.render(S, 0, input.state.yaw, input.state.pitch);
+    renderer.render(S, 0, input.state.yaw, input.state.pitch, dt);
     hud(S, 0, fps, quality === 'auto' ? 'auto ' + scale : quality);
     if (S.over) endRound();
   }
@@ -146,6 +178,7 @@
   document.getElementById('sel-quality').onchange = e => {
     quality = e.target.value;
     scale = quality === 'low' ? 0.5 : quality === 'high' ? 1.0 : scale;
+    renderer.setQuality(quality);
     applySize();
   };
   document.getElementById('sens').oninput = e => { input.state.sens = +e.target.value; };
