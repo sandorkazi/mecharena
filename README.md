@@ -24,10 +24,14 @@ Desktop, billentyűzet + egér kell. Touch MVP-n kívül.
 ## Fejlesztés
 
 ```sh
-# lokális próba (bármely statikus szerver)
+# lokális próba (statikus szerver KELL a three.js-modulok miatt)
 python3 -m http.server -d . 8000
 # -> http://localhost:8000/
+# (file:// megnyitva csak a box-fallback grafika indul)
 ```
+
+Grafika: three.js + CC0 robot-modell (`assets/robot.glb`, Quaternius).
+Kredit: mech-modell — Tomás Laulhé (Quaternius), CC0.
 
 Struktúra: `/index.html`, `/src/`, `/assets/`, `/specs.md`, `/QA.md`.
 

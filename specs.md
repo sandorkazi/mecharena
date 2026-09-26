@@ -84,9 +84,9 @@ Mech = karakter+jármű egyben. 3 kaszt, azonos modell, eltérő színcsík (ké
 ## Platform
 
 - Cél: azonnal játszható statikus oldal, telepítés és szerver nélkül.
-- Stack: Vanilla JS (ES2020) + WebGL1, saját minimal render (~300 sor) vagy max 100 KB lib. Nincs Three.js / Phaser / WASM / bundler-kötelezettség MVP-ben. `index.html` relatív pathokkal, `file://` + `https://` alatt is indul (modulok helyett sima `<script>` vagy `type=module` relatívval — file-tesztelt).
+- Stack: Vanilla JS (ES2020, sim/UI) + three.js (CDN, importmap-pin) a renderhez. Saját GLB-modell (`assets/robot.glb`, Quaternius RobotExpressive, CC0) + three.js-skeletal animáció (Idle/Walk/Run/Jump/Punch/Death). Nincs WASM / bundler. `index.html` relatív pathokkal; `file://` alatt box-fallback renderer indul (teljes grafikához `python3 -m http.server` vagy Pages-URL kell, mert az ES-modul + fetch tiltott `file://`-n).
 - Nincs backend, nincs fetch-kötelezettség. Minden kliensben fut.
-- Méret-költség: első load <5 MB (cél <2 MB), gzip-pel. Asset: vertex-color, nincs textúra, nincs audio-fájl (WebAudio-szintézis).
+- Méret-költség: első load <5 MB (cél <2 MB), gzip-pel. Asset: 1 GLB-modell (~460 KB) + three.js CDN, nincs audio-fájl (WebAudio-szintézis).
 - Repo layout:
   - `/index.html` — belépő, canvas + HUD + menü mount.
   - `/src/main.js`, `/src/sim/` (physics, weapons, bots), `/src/render.js`, `/src/audio.js`, `/src/ui.js`, `/src/net.js` (stub).

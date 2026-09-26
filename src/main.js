@@ -1,8 +1,9 @@
 // Mech Arena — fő loop: fix 60Hz sim + render + botok + körök + auto minőség.
 'use strict';
-(function () {
+// Belépő: boot.js hívja a megfelelő rendererrel (three.js vagy fallback box).
+// Előtte a renderer == null (betöltés alatt): frame addig nem indul.
+function startGame(renderer) {
   const canvas = document.getElementById('c');
-  const renderer = createRenderer(canvas);
   const input = createInput(canvas);
   const audio = createAudio();
   const isDevelop = location.pathname.includes('/develop');
@@ -192,4 +193,4 @@
   addEventListener('resize', () => { if (inGame) applySize(); });
   if (location.search.includes('fps=1')) document.getElementById('fps').style.display = 'block';
   requestAnimationFrame(frame);
-})();
+}
