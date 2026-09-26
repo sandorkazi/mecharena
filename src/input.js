@@ -33,10 +33,10 @@ function createInput(canvas) {
   function poll() {
     const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
     const r = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-    // kamera-relatív -> világ (yaw körül forgatva)
+    // kamera-relatív -> világ: előre=(sin,cos), jobbra=(-cos,sin)
     const s = Math.sin(st.yaw), c = Math.cos(st.yaw);
     const out = {
-      mx: (s * f + c * r), mz: (c * f - s * r),
+      mx: (s * f - c * r), mz: (c * f + s * r),
       yaw: st.yaw, pitch: st.pitch, fire: st.fire,
       sword: st.sword, jump: !!keys.Space,
       dash: !!keys.ShiftLeft || !!keys.ShiftRight,

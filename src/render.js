@@ -377,9 +377,12 @@ function createRenderer(canvas) {
       const p = s.mechs[playerId];
       const px = p ? p.x : 0, py = p ? p.y + 1.8 : 2, pz = p ? p.z : 40;
       const cd = 4.5;
-      let ex = px - Math.sin(camYaw) * Math.cos(camPitch) * cd;
-      let ez = pz - Math.cos(camYaw) * Math.cos(camPitch) * cd;
-      let ey = py + 1.0 + Math.sin(camPitch) * cd;
+      // váll-kamera: szem + nézési pont is jobbra tolva → a mech balra-lentre
+      // kerül, a célkereszt iránya viszont pontosan a lövés iránya marad
+      const rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
+      let ex = px - Math.sin(camYaw) * Math.cos(camPitch) * cd + rx * 0.9;
+      let ez = pz - Math.cos(camYaw) * Math.cos(camPitch) * cd + rz * 0.9;
+      let ey = py + 1.5 + Math.sin(camPitch) * cd;
       if (ey < 0.5) ey = 0.5;
       const cc = camCollide(s, px, py + 0.6, pz, ex, ey, ez);
       ex = cc[0]; ey = cc[1]; ez = cc[2];
@@ -390,7 +393,7 @@ function createRenderer(canvas) {
       }
       const aspect = canvas.width / Math.max(1, canvas.height);
       mat4persp(proj, 70 * Math.PI / 180, aspect, 0.1, 300);
-      const lx = px + Math.sin(camYaw) * 6, ly = py + Math.sin(camPitch) * 6, lz = pz + Math.cos(camYaw) * 6;
+      const lx = px + Math.sin(camYaw) * 8 + rx * 0.9, ly = py + 0.3 + Math.sin(camPitch) * 8, lz = pz + Math.cos(camYaw) * 8 + rz * 0.9;
       mat4look(view, [ex, ey, ez], [lx, ly, lz], [0, 1, 0]);
       mat4mul(pv, proj, view, tmp);
 
