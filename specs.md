@@ -183,7 +183,7 @@ Kötelező minimum (acceptance tesztek ezekre):
 ## GitHub
 
 - Publikus repo, `main` = mindig játszható. Branch-stratégia: `main` + rövid feature-branch-ek, PR nélkül is mehet MVP-ben, de törött `main` tilos.
-- Pages: root `index.html`-ből (`Settings → Pages → Deploy from branch → main / root`). Alternatíva `/docs/` csak ha a root-ban build lenne — MVP-ben root. `.github/workflows/pages.yml` nem kötelező, elég a branch-deploy; workflow csak ha egyéni domain vagy check kell.
+- Pages (két állandó endpoint, Actions-szel): `main` -> `/`, `develop` -> `/develop/`. Workflow: `.github/workflows/pages.yml` mindkét branchet checkoutolja, egy `_site/`-ba másolja, majd `deploy-pages`. Settings-ben Source: **GitHub Actions**. URL: `https://<user>.github.io/<repo>/` + `https://<user>.github.io/<repo>/develop/`.
 - Fájlok:
   - `README.md`: 1-képernyős: link a Pages-re, kontroll-tábla, QA-rövid.
   - `QA.md`: 5 perces kézi checklist (elfogadás = mind zöld):

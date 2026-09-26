@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mech Arena — MVP skeleton</title>
+  <style>
+    html,body{margin:0;height:100%;background:#0b0e14;color:#e8edf5;font-family:system-ui,sans-serif}
+    #app{max-width:900px;margin:0 auto;padding:24px}
+    .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    .main{background:#1d4ed8}.develop{background:#b45309}
+    canvas{width:100%;height:320px;background:#111826;border:1px solid #26314a;border-radius:8px}
+    nav a{color:#93c5fd;margin-right:12px}
+    code{background:#1a2233;padding:1px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+<div id="app">
+  <nav>
+    <a href="./">Stable (main)</a>
+    <a href="./develop/">Develop</a>
+    <a href="https://github.com/sandorkazi/mecharena">GitHub</a>
+  </nav>
+  <h1>Mech Arena <span id="branch" class="badge main">main</span></h1>
+  <p>MVP skeleton — <code>specs.md</code> szerint. Játék-logika még nincs, csak Pages-deploy ellenőrző oldal.</p>
+  <canvas id="c" width="900" height="320"></canvas>
+  <p id="info"></p>
+  <ul>
+    <li>Stabil: <code>/</code> = <code>main</code> branch</li>
+    <li>Fejlesztői: <code>/develop/</code> = <code>develop</code> branch</li>
+  </ul>
+</div>
+<script>
+  const isDevelop = location.pathname.includes('/develop');
+  const el = document.getElementById('branch');
+  el.textContent = isDevelop ? 'develop' : 'main';
+  el.className = 'badge ' + (isDevelop ? 'develop' : 'main');
+  document.getElementById('info').textContent =
+    'URL: ' + location.href + ' — WebGL ' +
+    (!!document.createElement('canvas').getContext('webgl') ? 'OK' : 'NEM elérhető');
+  const c = document.getElementById('c').getContext('2d');
+  c.fillStyle = '#111826'; c.fillRect(0,0,900,320);
+  c.fillStyle = isDevelop ? '#b45309' : '#1d4ed8';
+  for (let i=0;i<8;i++) c.fillRect(60+i*100, 140+Math.sin(Date.now()/500+i)*10, 40, 60);
+  requestAnimationFrame(function tick(){});
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+name: Pages (main + develop)
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          path: develop
+          # ha még nincs develop branch, ne bukjon:
+        continue-on-error: true
+      - name: Assemble _site (main -> /, develop -> /develop/)
+        run: |
+          rm -rf _site && mkdir -p _site/develop
+          # main -> root (kizárva .git, .github)
+          shopt -s dotglob
+          for f in main/*; do
+            base=$(basename "$f")
+            case "$base" in
+              .git|.github) continue;;
+              *) cp -r "$f" _site/;;
+            esac
+          done
+          # develop -> /develop/ (ha létezik)
+          if [ -f develop/index.html ]; then
+            for f in develop/*; do
+              base=$(basename "$f")
+              case "$base" in
+                .git|.github) continue;;
+                *) cp -r "$f" _site/develop/;;
+              esac
+            done
+            echo "develop deployed to /develop/"
+          else
+            echo "no develop branch yet, /develop/ placeholder"
+            cp _site/index.html _site/develop/index.html || echo "placeholder" > _site/develop/index.html
+          fi
+          touch _site/.nojekyll
+          ls -R _site | head -50
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
