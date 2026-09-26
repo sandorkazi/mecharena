@@ -24,6 +24,7 @@
   });
   // inputök inicializálása minden mech-hez
   let inputs = S.mechs.map(() => ({}));
+  let inGame = false, paused = false;
 
   // UI hivatkozások
   const hpNum = document.getElementById('hp-num');
