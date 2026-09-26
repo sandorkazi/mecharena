@@ -46,8 +46,8 @@
   }
 
   function show(sid) {
-    ['screen-menu','screen-lobby','screen-game','screen-result'].forEach(x=>document.getElementById('screen-'+x).style.display='none');
-    document.getElementById('screen-'+sid).style.display='block';
+    ['screen-menu','screen-lobby','screen-game','screen-result'].forEach(x=>document.getElementById(x).style.display='none');
+    document.getElementById(sid).style.display='block';
   }
   function feed(msg, type) {
     const toast = document.getElementById('toast');
